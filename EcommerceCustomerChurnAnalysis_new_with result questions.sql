@@ -1,16 +1,7 @@
-/* =========================================================
-   ECOMMERCE CUSTOMER CHURN ANALYSIS
-   MySQL Workbench
-   ========================================================= */
-
 CREATE DATABASE IF NOT EXISTS ecommerce_db;
 
 USE ecommerce_db;
 
-
-/* =========================================================
-   STEP 1: CHECK DATA
-   ========================================================= */
 
 SELECT
     CustomerID,
@@ -24,11 +15,7 @@ SELECT
 FROM ecommercechurn
 LIMIT 10;
 
-
-/* =========================================================
-   STEP 2: CLEAN NUMERIC COLUMNS
-   Convert blank strings to NULL
-   ========================================================= */
+   /*  CLEAN NUMERIC COLUMNS */
 
 SET SQL_SAFE_UPDATES = 0;
 
@@ -43,9 +30,7 @@ WHERE TRIM(HourSpendOnApp) = '';
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   STEP 3: CONVERT TEXT COLUMNS TO NUMERIC
-   ========================================================= */
+/* CONVERT TEXT COLUMNS TO NUMERIC*/
 
 ALTER TABLE ecommercechurn
 MODIFY COLUMN Tenure DECIMAL(10,2);
@@ -54,9 +39,7 @@ ALTER TABLE ecommercechurn
 MODIFY COLUMN HourSpendOnApp DECIMAL(10,2);
 
 
-/* =========================================================
-   STEP 4: BASIC DATA QUALITY CHECKS
-   ========================================================= */
+/*  BASIC DATA QUALITY CHECKS*/
 
 -- Total number of customers
 SELECT COUNT(DISTINCT CustomerID) AS TotalNumberOfCustomers
@@ -128,9 +111,7 @@ FROM ecommercechurn
 WHERE DaySinceLastOrder IS NULL;
 
 
-/* =========================================================
-   STEP 5: CALCULATE AVERAGES FOR MISSING VALUES
-   ========================================================= */
+/*  CALCULATE AVERAGES FOR MISSING VALUES */
 
 SELECT
     ROUND(AVG(Tenure), 2) AS AverageTenure
@@ -176,11 +157,9 @@ FROM ecommercechurn
 WHERE DaySinceLastOrder IS NOT NULL;
 
 
-/* =========================================================
-   STEP 6: IMPUTE NULL VALUES
+/*IMPUTE NULL VALUES
    Using JOIN with derived averages
-   Avoids MySQL Error 1093
-   ========================================================= */
+   Avoids MySQL Error 1093 */
 
 SET SQL_SAFE_UPDATES = 0;
 
@@ -251,9 +230,7 @@ WHERE e.DaySinceLastOrder IS NULL;
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   STEP 7: CREATE CUSTOMER STATUS
-   ========================================================= */
+/* CREATE CUSTOMER STATUS */
 
 ALTER TABLE ecommercechurn
 ADD COLUMN CustomerStatus VARCHAR(50);
@@ -271,9 +248,7 @@ END;
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   STEP 8: CREATE COMPLAINT STATUS
-   ========================================================= */
+/* CREATE COMPLAINT STATUS */
 
 ALTER TABLE ecommercechurn
 ADD COLUMN ComplainReceived VARCHAR(10);
@@ -291,9 +266,7 @@ END;
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   STEP 9: STANDARDIZE CATEGORICAL VALUES
-   ========================================================= */
+/* STANDARDIZE CATEGORICAL VALUES */
 
 SET SQL_SAFE_UPDATES = 0;
 
@@ -331,20 +304,12 @@ WHERE PreferredPaymentMode = 'COD';
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   STEP 10: CHECK WAREHOUSE DISTANCE VALUES
-   ========================================================= */
+/*  CHECK WAREHOUSE DISTANCE VALUES*/
 
 SELECT DISTINCT WarehouseToHome
 FROM ecommercechurn
 ORDER BY WarehouseToHome;
 
-
-/*
-   Correct suspected data-entry errors:
-   126 -> 26
-   127 -> 27
-*/
 
 SET SQL_SAFE_UPDATES = 0;
 
@@ -359,14 +324,10 @@ WHERE WarehouseToHome = 126;
 SET SQL_SAFE_UPDATES = 1;
 
 
-/* =========================================================
-   BUSINESS ANALYSIS
-   ========================================================= */
+/*BUSINESS ANALYSIS */
 
 
-/* =========================================================
-   1. OVERALL CUSTOMER CHURN RATE
-   ========================================================= */
+/*1. OVERALL CUSTOMER CHURN RATE */
 
 SELECT
     COUNT(*) AS TotalCustomers,
@@ -379,9 +340,7 @@ SELECT
 FROM ecommercechurn;
 
 
-/* =========================================================
-   2. CHURN RATE BY PREFERRED LOGIN DEVICE
-   ========================================================= */
+/*  2. CHURN RATE BY PREFERRED LOGIN DEVICE*/
 
 SELECT
     PreferredLoginDevice,
@@ -396,9 +355,7 @@ GROUP BY PreferredLoginDevice
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   3. CHURN RATE BY CITY TIER
-   ========================================================= */
+/* 3. CHURN RATE BY CITY TIER*/
 
 SELECT
     CityTier,
@@ -413,9 +370,7 @@ GROUP BY CityTier
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   4. WAREHOUSE-TO-HOME DISTANCE VS CHURN
-   ========================================================= */
+/*  4. WAREHOUSE-TO-HOME DISTANCE VS CHURN */
 
 ALTER TABLE ecommercechurn
 ADD COLUMN WarehouseToHomeRange VARCHAR(50);
@@ -457,9 +412,7 @@ GROUP BY WarehouseToHomeRange
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   5. PAYMENT MODE AMONG CHURNED CUSTOMERS
-   ========================================================= */
+/* 5. PAYMENT MODE AMONG CHURNED CUSTOMERS*/
 
 SELECT
     PreferredPaymentMode,
@@ -477,9 +430,7 @@ GROUP BY PreferredPaymentMode
 ORDER BY ChurnedCustomers DESC;
 
 
-/* =========================================================
-   6. TENURE GROUP VS CHURN
-   ========================================================= */
+/*   6. TENURE GROUP VS CHURN */
 
 ALTER TABLE ecommercechurn
 ADD COLUMN TenureRange VARCHAR(50);
@@ -521,9 +472,7 @@ GROUP BY TenureRange
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   7. GENDER VS CHURN
-   ========================================================= */
+/*  7. GENDER VS CHURN */
 
 SELECT
     Gender,
@@ -538,9 +487,7 @@ GROUP BY Gender
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   8. APP USAGE VS CHURN
-   ========================================================= */
+/*  8. APP USAGE VS CHURN */
 
 SELECT
     CustomerStatus,
@@ -551,9 +498,7 @@ FROM ecommercechurn
 GROUP BY CustomerStatus;
 
 
-/* =========================================================
-   9. REGISTERED DEVICES VS CHURN
-   ========================================================= */
+/* 9. REGISTERED DEVICES VS CHURN*/
 
 SELECT
     NumberOfDeviceRegistered,
@@ -568,9 +513,7 @@ GROUP BY NumberOfDeviceRegistered
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   10. ORDER CATEGORY VS CHURN
-   ========================================================= */
+/*  10. ORDER CATEGORY VS CHURN*/
 
 SELECT
     PreferedOrderCat,
@@ -585,9 +528,7 @@ GROUP BY PreferedOrderCat
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   11. SATISFACTION SCORE VS CHURN
-   ========================================================= */
+/* 11. SATISFACTION SCORE VS CHURN*/
 
 SELECT
     SatisfactionScore,
@@ -602,9 +543,7 @@ GROUP BY SatisfactionScore
 ORDER BY SatisfactionScore;
 
 
-/* =========================================================
-   12. MARITAL STATUS VS CHURN
-   ========================================================= */
+/*  12. MARITAL STATUS VS CHURN */
 
 SELECT
     MaritalStatus,
@@ -619,9 +558,7 @@ GROUP BY MaritalStatus
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   13. AVERAGE ADDRESSES OF CHURNED CUSTOMERS
-   ========================================================= */
+/*  13. AVERAGE ADDRESSES OF CHURNED CUSTOMERS */
 
 SELECT
     ROUND(AVG(NumberOfAddress), 2)
@@ -630,9 +567,7 @@ FROM ecommercechurn
 WHERE Churn = 1;
 
 
-/* =========================================================
-   14. COMPLAINTS VS CHURN
-   ========================================================= */
+/*  14. COMPLAINTS VS CHURN*/
 
 SELECT
     ComplainReceived,
@@ -647,9 +582,7 @@ GROUP BY ComplainReceived
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   15. COUPON USAGE VS CHURN
-   ========================================================= */
+/*  15. COUPON USAGE VS CHURN*/
 
 SELECT
     CustomerStatus,
@@ -660,9 +593,7 @@ FROM ecommercechurn
 GROUP BY CustomerStatus;
 
 
-/* =========================================================
-   16. DAYS SINCE LAST ORDER
-   ========================================================= */
+/*  16. DAYS SINCE LAST ORDER*/
 
 SELECT
     CustomerStatus,
@@ -672,9 +603,7 @@ FROM ecommercechurn
 GROUP BY CustomerStatus;
 
 
-/* =========================================================
-   17. CASHBACK AMOUNT VS CHURN
-   ========================================================= */
+/* 17. CASHBACK AMOUNT VS CHURN*/
 
 ALTER TABLE ecommercechurn
 ADD COLUMN CashbackAmountRange VARCHAR(50);
@@ -716,9 +645,7 @@ GROUP BY CashbackAmountRange
 ORDER BY ChurnRate DESC;
 
 
-/* =========================================================
-   FINAL DATA CHECK
-   ========================================================= */
+/* FINAL DATA CHECK*/
 
 SELECT COUNT(*) AS FinalRowCount
 FROM ecommercechurn;
