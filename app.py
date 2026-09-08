@@ -12,6 +12,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+
 .stApp {
     background-color: #f4f1ea;
     color: #1f2937;
@@ -42,29 +43,105 @@ p, label, .stMarkdown {
     color: #374151 !important;
 }
 
-[data-baseweb="select"] {
-    background-color: #ffffff !important;
-}
-
-[data-baseweb="select"] * {
-    color: #1f2937 !important;
-}
-
-.stNumberInput input {
-    color: #1f2937 !important;
-    background-color: #ffffff !important;
-}
-
 .stSelectbox label,
 .stNumberInput label {
     color: #374151 !important;
     font-weight: 500 !important;
 }
 
+[data-baseweb="select"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+[data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #9ca3af !important;
+}
+
+[data-baseweb="select"] span {
+    color: #1f2937 !important;
+}
+
+[data-baseweb="select"] input {
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
+}
+
+[data-baseweb="select"] input::placeholder {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+}
+
+[data-baseweb="select"] svg {
+    fill: #374151 !important;
+}
+
+[data-baseweb="popover"] {
+    background-color: #ffffff !important;
+}
+
+[data-baseweb="popover"] > div {
+    background-color: #ffffff !important;
+}
+
+div[role="listbox"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+div[role="option"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+div[role="option"] * {
+    color: #1f2937 !important;
+}
+
+div[role="option"]:hover {
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+}
+
+div[role="option"][aria-selected="true"] {
+    background-color: #e5e7eb !important;
+    color: #111827 !important;
+}
+
+div[role="option"][aria-selected="true"] * {
+    color: #111827 !important;
+}
+
+[data-baseweb="menu"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+[data-baseweb="menu"] * {
+    color: #1f2937 !important;
+}
+
+.stNumberInput input {
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+    -webkit-text-fill-color: #1f2937 !important;
+}
+
+.stNumberInput button {
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+}
+
+.stNumberInput button svg {
+    fill: #1f2937 !important;
+}
+
 div.stButton > button {
     width: 100%;
     background-color: #176b68;
-    color: white;
+    color: white !important;
     border: none;
     border-radius: 8px;
     padding: 0.7rem 1rem;
@@ -74,7 +151,7 @@ div.stButton > button {
 
 div.stButton > button:hover {
     background-color: #125451;
-    color: white;
+    color: white !important;
 }
 
 .result-card {
@@ -123,6 +200,7 @@ hr {
 [data-testid="stMetricLabel"] {
     color: #4b5563 !important;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
