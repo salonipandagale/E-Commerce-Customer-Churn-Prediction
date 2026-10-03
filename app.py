@@ -318,7 +318,7 @@ def show_result(input_data):
     else:
         churn_index = 1
 
-    score = float(probabilities[churn_index])
+    score = float(probabilities[0])
 
     if score >= HIGH_RISK_CUTOFF:
         css_class = "high-risk"
