@@ -1,15 +1,97 @@
-import streamlit as st
-import pandas as pd
 import joblib
-
-model = joblib.load("churn_random_forest_pipeline.pkl")
+import pandas as pd
+import streamlit as st
 
 st.set_page_config(
     page_title="E-Commerce Churn Predictor",
-    page_icon="",
+    page_icon="📉",
     layout="wide"
 )
 
+
+MODEL_PATH = "churn_xgboost_pipeline.pkl"
+
+# Risk bands applied to the model's churn score (0 to 1)
+LOW_RISK_CUTOFF = 0.30    # below this  -> low risk
+HIGH_RISK_CUTOFF = 0.50   # this & above -> high risk, in between -> medium
+
+# Column order the trained pipeline expects
+FEATURE_ORDER = [
+    "Tenure",
+    "PreferredLoginDevice",
+    "CityTier",
+    "WarehouseToHome",
+    "PreferredPaymentMode",
+    "Gender",
+    "HourSpendOnApp",
+    "NumberOfDeviceRegistered",
+    "PreferedOrderCat",
+    "SatisfactionScore",
+    "MaritalStatus",
+    "NumberOfAddress",
+    "Complain",
+    "OrderAmountHikeFromlastYear",
+    "CouponUsed",
+    "OrderCount",
+    "DaySinceLastOrder",
+    "CashbackAmount",
+]
+
+# Values used for the features that Quick Prediction does not ask for
+# (typical values from the training data: medians / most frequent categories)
+QUICK_DEFAULTS = {
+    "PreferredLoginDevice": "Mobile Phone",
+    "CityTier": 1,
+    "Gender": "Male",
+    "HourSpendOnApp": 3.0,
+    "NumberOfDeviceRegistered": 4,
+    "MaritalStatus": "Married",
+    "NumberOfAddress": 3,
+    "OrderAmountHikeFromlastYear": 15.0,
+    "CouponUsed": 1.0,
+    "OrderCount": 2.0,
+    "CashbackAmount": 163.0,
+}
+
+ORDER_CATEGORIES = [
+    "Laptop & Accessory",
+    "Mobile Phone",
+    "Fashion",
+    "Mobile",
+    "Grocery",
+    "Others",
+]
+
+PAYMENT_MODES = [
+    "Debit Card",
+    "Credit Card",
+    "E wallet",
+    "UPI",
+    "Cash on Delivery",
+]
+
+
+@st.cache_resource
+def load_model(path):
+    # Loaded once and reused across reruns / users
+    return joblib.load(path)
+
+
+try:
+    model = load_model(MODEL_PATH)
+except Exception as err:
+    st.error(
+        f"Could not load the model file '{MODEL_PATH}'. "
+        "Check that it is in the same folder as app.py and that the "
+        "scikit-learn / xgboost versions in requirements.txt match the "
+        "versions used for training."
+    )
+    st.exception(err)
+    st.stop()
+
+# ---------------------------------------------------------------------------
+# Styling
+# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
 
@@ -169,6 +251,13 @@ div.stButton > button:hover {
     border-radius: 8px;
 }
 
+.medium-risk {
+    background-color: #fdf3dc;
+    border-left: 6px solid #d9a21b;
+    padding: 18px;
+    border-radius: 8px;
+}
+
 .high-risk {
     background-color: #f9e5e3;
     border-left: 6px solid #c94c4c;
@@ -204,8 +293,81 @@ hr {
 </style>
 """, unsafe_allow_html=True)
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def build_input(values):
+    """Turn a dict of feature values into a one-row DataFrame in training order."""
+    return pd.DataFrame([values])[FEATURE_ORDER]
+
+
+def show_result(input_data):
+    """Run the pipeline on one customer and display the risk band."""
+    score = float(model.predict_proba(input_data)[0][1])
+
+    if score >= HIGH_RISK_CUTOFF:
+        css_class = "high-risk"
+        title = "HIGH CHURN RISK"
+        title_color = "#9f2d2d"
+        text_color = "#5f1f1f"
+        message = "This customer is flagged as high risk of churning."
+        action = (
+            "Recommended action: Prioritize this customer for retention "
+            "outreach and targeted engagement."
+        )
+    elif score >= LOW_RISK_CUTOFF:
+        css_class = "medium-risk"
+        title = "MEDIUM CHURN RISK"
+        title_color = "#8a6410"
+        text_color = "#5c430c"
+        message = "This customer shows some signs of churn risk."
+        action = (
+            "Recommended action: Add this customer to a watchlist and "
+            "consider a light-touch engagement such as a check-in message "
+            "or a small incentive."
+        )
+    else:
+        css_class = "low-risk"
+        title = "LOW CHURN RISK"
+        title_color = "#176b55"
+        text_color = "#245746"
+        message = "This customer is flagged as lower risk of churning."
+        action = (
+            "Recommended action: Continue regular engagement and monitor "
+            "future customer activity."
+        )
+
+    st.divider()
+    st.write("### Prediction Result")
+
+    st.markdown(f"""
+    <div class="{css_class}">
+        <h3 style="color:{title_color} !important;">{title}</h3>
+        <p style="color:{text_color} !important;">{message}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.metric("Churn Risk Score", f"{score * 100:.1f}%")
+    st.write(action)
+    st.progress(min(max(score, 0.0), 1.0))
+
+    st.caption(
+        "The risk score is the model's output on a 0-100% scale; it is not a "
+        "calibrated probability. Bands: below "
+        f"{LOW_RISK_CUTOFF * 100:.0f}% low, "
+        f"{LOW_RISK_CUTOFF * 100:.0f}-{HIGH_RISK_CUTOFF * 100:.0f}% medium, "
+        f"{HIGH_RISK_CUTOFF * 100:.0f}% and above high."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Page
+# ---------------------------------------------------------------------------
 st.title("E-Commerce Customer Churn Predictor")
-st.write("Estimate the probability that a customer may churn based on their behaviour and profile.")
+st.write(
+    "Estimate the churn risk of a customer based on their behaviour and profile."
+)
 
 st.divider()
 
@@ -231,25 +393,12 @@ if prediction_mode == "Quick Prediction":
 
         order_category = st.selectbox(
             "Preferred Order Category",
-            [
-                "Laptop & Accessory",
-                "Mobile Phone",
-                "Fashion",
-                "Mobile",
-                "Grocery",
-                "Others"
-            ]
+            ORDER_CATEGORIES
         )
 
         payment_mode = st.selectbox(
             "Preferred Payment Mode",
-            [
-                "Debit Card",
-                "Credit Card",
-                "E wallet",
-                "UPI",
-                "Cash on Delivery"
-            ]
+            PAYMENT_MODES
         )
 
         satisfaction = st.selectbox(
@@ -267,7 +416,7 @@ if prediction_mode == "Quick Prediction":
         warehouse_distance = st.number_input(
             "Warehouse to Home Distance",
             min_value=5.0,
-            max_value=127.0,
+            max_value=36.0,
             value=15.0
         )
 
@@ -287,81 +436,20 @@ if prediction_mode == "Quick Prediction":
 
     st.write("")
 
-    predict = st.button("Predict Churn")
+    if st.button("Predict Churn"):
 
-    if predict:
-
-        input_data = pd.DataFrame({
-            "Tenure": [tenure],
-            "PreferredLoginDevice": ["Mobile Phone"],
-            "CityTier": [1],
-            "WarehouseToHome": [warehouse_distance],
-            "PreferredPaymentMode": [payment_mode],
-            "Gender": ["Male"],
-            "HourSpendOnApp": [3.0],
-            "NumberOfDeviceRegistered": [4],
-            "PreferedOrderCat": [order_category],
-            "SatisfactionScore": [satisfaction],
-            "MaritalStatus": ["Married"],
-            "NumberOfAddress": [3],
-            "Complain": [1 if complaint == "Yes" else 0],
-            "OrderAmountHikeFromlastYear": [15.0],
-            "CouponUsed": [1.0],
-            "OrderCount": [2.0],
-            "DaySinceLastOrder": [days_last_order],
-            "CashbackAmount": [163.0]
+        values = dict(QUICK_DEFAULTS)
+        values.update({
+            "Tenure": tenure,
+            "WarehouseToHome": warehouse_distance,
+            "PreferredPaymentMode": payment_mode,
+            "PreferedOrderCat": order_category,
+            "SatisfactionScore": satisfaction,
+            "Complain": 1 if complaint == "Yes" else 0,
+            "DaySinceLastOrder": days_last_order,
         })
 
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
-
-        st.divider()
-        st.write("### Prediction Result")
-
-        if prediction == 1:
-
-            st.markdown("""
-            <div class="high-risk">
-                <h3 style="color:#9f2d2d !important;">HIGH CHURN RISK</h3>
-                <p style="color:#5f1f1f !important;">
-                This customer is predicted to have a high probability of churn.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.metric(
-                "Estimated Churn Probability",
-                f"{probability * 100:.2f}%"
-            )
-
-            st.write(
-                "Recommended action: Prioritize this customer for retention "
-                "outreach and targeted engagement."
-            )
-
-        else:
-
-            st.markdown("""
-            <div class="low-risk">
-                <h3 style="color:#176b55 !important;">LOW CHURN RISK</h3>
-                <p style="color:#245746 !important;">
-                This customer is predicted to have a lower probability of churn.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.metric(
-                "Estimated Churn Probability",
-                f"{probability * 100:.2f}%"
-            )
-
-            st.write(
-                "Recommended action: Continue regular engagement and monitor "
-                "future customer activity."
-            )
-
-        st.progress(float(probability))
-
+        show_result(build_input(values))
 
 else:
 
@@ -391,19 +479,13 @@ else:
         warehouse_distance = st.number_input(
             "Warehouse to Home Distance",
             min_value=5.0,
-            max_value=127.0,
+            max_value=36.0,
             value=15.0
         )
 
         payment_mode = st.selectbox(
             "Preferred Payment Mode",
-            [
-                "Debit Card",
-                "Credit Card",
-                "E wallet",
-                "UPI",
-                "Cash on Delivery"
-            ]
+            PAYMENT_MODES
         )
 
     with col2:
@@ -429,14 +511,7 @@ else:
 
         order_category = st.selectbox(
             "Preferred Order Category",
-            [
-                "Laptop & Accessory",
-                "Mobile Phone",
-                "Fashion",
-                "Mobile",
-                "Grocery",
-                "Others"
-            ]
+            ORDER_CATEGORIES
         )
 
         satisfaction = st.selectbox(
@@ -508,77 +583,27 @@ else:
 
     st.write("")
 
-    predict = st.button("Predict Churn")
+    if st.button("Predict Churn"):
 
-    if predict:
+        values = {
+            "Tenure": tenure,
+            "PreferredLoginDevice": login_device,
+            "CityTier": city_tier,
+            "WarehouseToHome": warehouse_distance,
+            "PreferredPaymentMode": payment_mode,
+            "Gender": gender,
+            "HourSpendOnApp": app_hours,
+            "NumberOfDeviceRegistered": devices,
+            "PreferedOrderCat": order_category,
+            "SatisfactionScore": satisfaction,
+            "MaritalStatus": marital_status,
+            "NumberOfAddress": number_address,
+            "Complain": 1 if complaint == "Yes" else 0,
+            "OrderAmountHikeFromlastYear": order_hike,
+            "CouponUsed": coupon_used,
+            "OrderCount": order_count,
+            "DaySinceLastOrder": days_last_order,
+            "CashbackAmount": cashback,
+        }
 
-        input_data = pd.DataFrame({
-            "Tenure": [tenure],
-            "PreferredLoginDevice": [login_device],
-            "CityTier": [city_tier],
-            "WarehouseToHome": [warehouse_distance],
-            "PreferredPaymentMode": [payment_mode],
-            "Gender": [gender],
-            "HourSpendOnApp": [app_hours],
-            "NumberOfDeviceRegistered": [devices],
-            "PreferedOrderCat": [order_category],
-            "SatisfactionScore": [satisfaction],
-            "MaritalStatus": [marital_status],
-            "NumberOfAddress": [number_address],
-            "Complain": [1 if complaint == "Yes" else 0],
-            "OrderAmountHikeFromlastYear": [order_hike],
-            "CouponUsed": [coupon_used],
-            "OrderCount": [order_count],
-            "DaySinceLastOrder": [days_last_order],
-            "CashbackAmount": [cashback]
-        })
-
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
-
-        st.divider()
-        st.write("### Prediction Result")
-
-        if prediction == 1:
-
-            st.markdown("""
-            <div class="high-risk">
-                <h3 style="color:#9f2d2d !important;">HIGH CHURN RISK</h3>
-                <p style="color:#5f1f1f !important;">
-                This customer is predicted to have a high probability of churn.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.metric(
-                "Estimated Churn Probability",
-                f"{probability * 100:.2f}%"
-            )
-
-            st.write(
-                "Recommended action: Prioritize this customer for retention "
-                "outreach and targeted engagement."
-            )
-
-        else:
-
-            st.markdown("""
-            <div class="low-risk">
-                <h3 style="color:#176b55 !important;">LOW CHURN RISK</h3>
-                <p style="color:#245746 !important;">
-                This customer is predicted to have a lower probability of churn.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.metric(
-                "Estimated Churn Probability",
-                f"{probability * 100:.2f}%"
-            )
-
-            st.write(
-                "Recommended action: Continue regular engagement and monitor "
-                "future customer activity."
-            )
-
-        st.progress(float(probability))
+        show_result(build_input(values))
