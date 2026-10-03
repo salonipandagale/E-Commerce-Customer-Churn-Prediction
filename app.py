@@ -8,11 +8,10 @@ st.set_page_config(
     layout="wide"
 )
 
-
 MODEL_PATH = "churn_xgboost_pipeline.pkl"
 
 # Risk bands applied to the model's churn score (0 to 1)
-LOW_RISK_CUTOFF = 0.30    # below this  -> low risk
+LOW_RISK_CUTOFF = 0.30    # below this -> low risk
 HIGH_RISK_CUTOFF = 0.50   # this & above -> high risk, in between -> medium
 
 # Column order the trained pipeline expects
@@ -305,7 +304,21 @@ def build_input(values):
 
 def show_result(input_data):
     """Run the pipeline on one customer and display the risk band."""
-    score = float(model.predict_proba(input_data)[0][1])
+    probabilities = model.predict_proba(input_data)[0]
+    
+    # Safely resolve target class index for positive churn label (1)
+    if hasattr(model, "classes_"):
+        classes_list = list(model.classes_)
+        if 1 in classes_list:
+            churn_index = classes_list.index(1)
+        elif "1" in classes_list:
+            churn_index = classes_list.index("1")
+        else:
+            churn_index = 1 if len(classes_list) > 1 else 0
+    else:
+        churn_index = 1
+
+    score = float(probabilities[churn_index])
 
     if score >= HIGH_RISK_CUTOFF:
         css_class = "high-risk"
@@ -360,6 +373,12 @@ def show_result(input_data):
         f"{LOW_RISK_CUTOFF * 100:.0f}-{HIGH_RISK_CUTOFF * 100:.0f}% medium, "
         f"{HIGH_RISK_CUTOFF * 100:.0f}% and above high."
     )
+
+    with st.expander("Debug Diagnostic Data"):
+        st.write("**Model Classes:**", getattr(model, "classes_", "N/A"))
+        st.write("**Raw Probabilities:**", probabilities)
+        st.write("**Processed Input Row:**")
+        st.dataframe(input_data)
 
 
 # ---------------------------------------------------------------------------
@@ -441,13 +460,13 @@ if prediction_mode == "Quick Prediction":
 
         values = dict(QUICK_DEFAULTS)
         values.update({
-            "Tenure": tenure,
-            "WarehouseToHome": warehouse_distance,
-            "PreferredPaymentMode": payment_mode,
-            "PreferedOrderCat": order_category,
-            "SatisfactionScore": satisfaction,
+            "Tenure": float(tenure),
+            "WarehouseToHome": float(warehouse_distance),
+            "PreferredPaymentMode": str(payment_mode),
+            "PreferedOrderCat": str(order_category),
+            "SatisfactionScore": int(satisfaction),
             "Complain": 1 if complaint == "Yes" else 0,
-            "DaySinceLastOrder": days_last_order,
+            "DaySinceLastOrder": float(days_last_order),
         })
 
         show_result(build_input(values))
@@ -587,24 +606,24 @@ else:
     if st.button("Predict Churn"):
 
         values = {
-            "Tenure": tenure,
-            "PreferredLoginDevice": login_device,
-            "CityTier": city_tier,
-            "WarehouseToHome": warehouse_distance,
-            "PreferredPaymentMode": payment_mode,
-            "Gender": gender,
-            "HourSpendOnApp": app_hours,
-            "NumberOfDeviceRegistered": devices,
-            "PreferedOrderCat": order_category,
-            "SatisfactionScore": satisfaction,
-            "MaritalStatus": marital_status,
-            "NumberOfAddress": number_address,
+            "Tenure": float(tenure),
+            "PreferredLoginDevice": str(login_device),
+            "CityTier": int(city_tier),
+            "WarehouseToHome": float(warehouse_distance),
+            "PreferredPaymentMode": str(payment_mode),
+            "Gender": str(gender),
+            "HourSpendOnApp": float(app_hours),
+            "NumberOfDeviceRegistered": int(devices),
+            "PreferedOrderCat": str(order_category),
+            "SatisfactionScore": int(satisfaction),
+            "MaritalStatus": str(marital_status),
+            "NumberOfAddress": int(number_address),
             "Complain": 1 if complaint == "Yes" else 0,
-            "OrderAmountHikeFromlastYear": order_hike,
-            "CouponUsed": coupon_used,
-            "OrderCount": order_count,
-            "DaySinceLastOrder": days_last_order,
-            "CashbackAmount": cashback,
+            "OrderAmountHikeFromlastYear": float(order_hike),
+            "CouponUsed": float(coupon_used),
+            "OrderCount": float(order_count),
+            "DaySinceLastOrder": float(days_last_order),
+            "CashbackAmount": float(cashback),
         }
 
         show_result(build_input(values))
