@@ -11,7 +11,7 @@ This project focuses on analyzing and predicting customer churn for an e-commerc
 
 The project combines SQL, Python, statistical analysis, exploratory data analysis, machine learning and Power BI to identify customer behavior associated with churn and build a predictive model that can identify customers at higher risk of leaving.
 
-The final machine learning model is deployed as an interactive Streamlit application.
+The final machine learning model, a tuned XGBoost pipeline, is deployed as an interactive Streamlit application.
 
 ## Objectives
 
@@ -26,7 +26,7 @@ The final machine learning model is deployed as an interactive Streamlit applica
 
 ## Dataset
 
-The dataset contains 5,630 customer records and 20 variables related to customer behavior, transactions and demographics.
+The dataset contains 5,630 customer records and 20 variables related to customer behavior, transactions and demographics. About 16.8% of customers (948) churned.
 
 Important features include:
 
@@ -59,15 +59,24 @@ The target variable is `Churn`.
 - Missingness and churn analysis
 - Data error investigation
 - Category standardization
+- Duplicate record analysis
 - Exploratory data analysis
 - Statistical hypothesis testing
 - Feature preparation
 - Machine learning
-- Model evaluation
+- Cross-validated model evaluation
+- Hyperparameter tuning with nested cross-validation
 - Feature importance analysis
 - Customer churn insights
 - Business recommendations
 - Streamlit deployment
+
+## Data Quality
+
+- **Missing values:** seven columns contained missing values (about 4.5% to 5.5% each): Tenure, WarehouseToHome, HourSpendOnApp, OrderAmountHikeFromlastYear, CouponUsed, OrderCount and DaySinceLastOrder. Missingness was significantly associated with churn for six of the seven columns, so it was examined before imputation. Missing values are imputed inside the modelling pipeline (median for numeric, most frequent for categorical), fitted on training data only.
+- **Category standardization:** inconsistent payment-mode labels were merged (`CC` to Credit Card, `COD` to Cash on Delivery). The source labels `Phone` and `Mobile Phone` (login device) and `Mobile` and `Mobile Phone` (order category) were kept as separate categories.
+- **Data errors:** two implausible WarehouseToHome values (126 and 127) were treated as likely typing errors and corrected to 26 and 27 rather than removing the customers.
+- **Duplicates:** no duplicate rows exist when `CustomerID` is included, but 556 rows (9.9%) are identical to another row on all model features, with the same churn label. They were kept in the data. Model performance was re-checked after removing them (see Model Performance).
 
 ## Data Analysis
 
@@ -75,10 +84,11 @@ The analysis identified several important patterns.
 
 ### Customer Tenure
 
-New customers showed a substantially higher churn rate than existing customers.
+New customers (tenure of 6 months or less) showed a substantially higher churn rate than existing customers.
 
-- New customers: 32.42% churn rate
-- Existing customers: 7.21% churn rate
+- New customers (tenure ≤ 6 months): 32.42% churn rate
+- Existing customers (tenure > 6 months): 5.29% churn rate
+- Customers with missing tenure (analysed separately): 30.68% churn rate
 
 This indicates that the early stage of the customer lifecycle is an important period for retention.
 
@@ -122,7 +132,9 @@ The analysis found statistically significant relationships between churn and:
 - Preferred order category
 - Preferred payment mode
 
-Chi-square tests were used for categorical variables, while independent sample t-tests were used for numerical comparisons.
+Chi-square tests were used for categorical variables, while independent sample t-tests (Welch's, which does not assume equal variances) were used for numerical comparisons.
+
+Churned customers had a slightly higher average satisfaction score than retained customers (about 3.39 versus 3.00), a counterintuitive pattern that was not investigated further and was not used as a basis for recommendations. Statistical significance shows an association in this dataset, not causation.
 
 ## Machine Learning
 
@@ -132,35 +144,58 @@ Three classification models were developed and evaluated:
 - Random Forest
 - XGBoost
 
+All models were built as scikit-learn pipelines that contain the preprocessing (imputation and one-hot encoding), so preprocessing is fitted only on training data. Class imbalance was handled with class weighting.
+
 The models were evaluated using:
 
 - Precision
 - Recall
 - F1-score
 - ROC-AUC
+- PR-AUC (average precision)
 - Confusion Matrix
 
-Since churn is the minority class, churn recall and F1-score were given more importance than accuracy alone.
+Since churn is the minority class, churn recall, F1-score and PR-AUC were given more importance than accuracy alone.
+
+An initial single 80/20 hold-out split gave very high scores for Random Forest (ROC-AUC 0.9987, precision 1.00). Because a single split with only 190 churned customers in the test set can be optimistic, the models were re-evaluated with stratified 5-fold cross-validation, and those results are reported below.
 
 ## Model Performance
 
-| Model | Churn Precision | Churn Recall | Churn F1 | ROC-AUC |
-|------|----------------:|-------------:|---------:|--------:|
-| Logistic Regression | 0.74 | 0.52 | 0.61 | 0.8862 |
-| Random Forest | 1.00 | 0.85 | 0.92 | 0.9987 |
-| XGBoost | 0.93 | 0.83 | 0.88 | 0.9915 |
+Stratified 5-fold cross-validation, churn class (mean ± standard deviation across folds):
 
-Random Forest was selected as the final model based on its overall performance.
+| Model | Precision | Recall | F1 | ROC-AUC | PR-AUC |
+|------|----------:|-------:|---:|--------:|-------:|
+| Logistic Regression | 0.461 ± 0.023 | 0.812 ± 0.022 | 0.588 ± 0.023 | 0.890 ± 0.004 | 0.700 ± 0.017 |
+| Random Forest | 0.832 ± 0.022 | 0.840 ± 0.042 | 0.835 ± 0.030 | 0.981 ± 0.003 | 0.923 ± 0.016 |
+| XGBoost (default settings) | 0.814 ± 0.021 | 0.914 ± 0.024 | 0.861 ± 0.019 | 0.984 ± 0.002 | 0.933 ± 0.013 |
+| **XGBoost (tuned, final model)** | 0.946 | 0.930 | 0.938 | 0.9907 | 0.967 ± 0.011 |
 
-The model achieved:
+Notes:
 
-- Churn recall: 85%
-- Churn F1-score: 0.92
-- ROC-AUC: 0.9987
+- The tuned XGBoost row uses out-of-fold predictions at the default 0.5 cutoff for precision, recall, F1 and ROC-AUC, and nested cross-validation for PR-AUC.
+- Hyperparameters were tuned with randomized search (40 iterations) inside nested cross-validation, so the tuning did not see the evaluation folds.
+- Random Forest and Logistic Regression were evaluated with fixed settings and were not hyperparameter-tuned.
+- After removing the 556 duplicate-feature rows, results were very similar: ROC-AUC of 0.890 (Logistic Regression), 0.976 (Random Forest) and 0.982 (XGBoost), and a nested PR-AUC of 0.958 ± 0.014 for tuned XGBoost.
+
+XGBoost was selected as the final model because it had the highest cross-validated PR-AUC and recall, and the tuned version improved on it further. Random Forest and XGBoost were close in ROC-AUC.
+
+Final tuned parameters: `n_estimators=517`, `max_depth=6`, `learning_rate≈0.093`, `subsample≈0.985`, `colsample_bytree≈0.688`, `min_child_weight=1`, `reg_lambda≈4.39`.
+
+### Decision Threshold (tuned XGBoost, out-of-fold)
+
+| Threshold | Recall | Precision |
+|----------:|-------:|----------:|
+| 0.3 | 0.934 | 0.913 |
+| 0.4 | 0.931 | 0.930 |
+| 0.5 | 0.930 | 0.946 |
+| 0.6 | 0.926 | 0.952 |
+| 0.7 | 0.919 | 0.959 |
+
+Recall and precision change little between thresholds because the model scores most customers close to 0 or 1. The best cutoff in practice depends on the cost of a retention offer compared with the value of a retained customer.
 
 ## Feature Importance
 
-The most important features in the Random Forest model included:
+During model exploration, feature importance was calculated from the Random Forest model (impurity-based importance). The most important features included:
 
 - Tenure
 - Cashback amount
@@ -171,7 +206,7 @@ The most important features in the Random Forest model included:
 - Order amount increase
 - Satisfaction score
 
-Tenure was the most important feature in the final model.
+Tenure was the most important feature in that model. Importance was not recalculated for the final XGBoost model. Feature importance shows how much a feature helps prediction, not that it causes churn.
 
 ## Business Recommendations
 
@@ -188,12 +223,20 @@ These recommendations are based on observed relationships in the dataset and sho
 
 ## Streamlit Application
 
-The final Random Forest pipeline is integrated into a Streamlit application.
+The final tuned XGBoost pipeline is integrated into a Streamlit application.
 The application allows users to:
-- Enter customer information.
-- Generate a churn prediction.
-- View the predicted churn probability.
-- Identify whether the customer is classified as high or low churn risk.
+- Enter customer information (quick or detailed mode).
+- Generate a churn risk score.
+- Identify whether the customer falls in the low, medium or high churn risk band.
+
+Risk bands are based on the model's churn score: below 30% is low risk, 30% to 50% is medium risk and 50% or above is high risk. The score is a model output and is not a calibrated probability.
+
+## Limitations
+
+- The data is a single static snapshot, and models were validated with random cross-validation rather than a time-based split, so performance on live data is likely to be lower.
+- The scores are unusually high for churn data. Exact duplicate rows were checked and had little effect, but near-duplicate records were not tested.
+- All findings are observational and do not prove that any factor causes churn.
+- The churn score is not calibrated, and thresholds were examined on the same cross-validated data used for evaluation.
 
 ## Project Structure
 
@@ -204,7 +247,7 @@ ecommerce-customer-churn-prediction/
 ├── app.py
 ├── requirements.txt
 ├── .python-version
-├── churn_random_forest_pipeline.pkl
+├── churn_xgboost_pipeline.pkl
 │
 ├── data/
 │   ├── ecommerce_churn.csv
@@ -214,6 +257,7 @@ ecommerce-customer-churn-prediction/
 │   ├── churn_prediction.ipynb
 │   └── ecommerce_churn_insights.ipynb
 │
-└── SQL analysis and PowerBI/
-    └── powerbi_dashboard.pdf
-    ├── ecommerce_customer_churn.sql
+└── SQL analysis and PowerBI dashboard/
+    ├── powerbi_dashboard.pdf
+    └── ecommerce_customer_churn.sql
+```
