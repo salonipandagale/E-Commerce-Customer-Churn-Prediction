@@ -231,9 +231,10 @@ div.stButton > button {
     font-weight: 600;
 }
 
-div.stButton > button:hover {
-    background-color: #125451;
-    color: white !important;
+div.stButton > button p,
+div.stButton > button:hover p,
+div.stButton > button:focus p {
+   color: white !important;
 }
 
 .result-card {
